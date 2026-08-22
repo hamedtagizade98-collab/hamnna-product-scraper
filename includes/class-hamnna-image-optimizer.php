@@ -4,7 +4,11 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 final class Hamnna_Image_Optimizer {
     const CRON = 'hamnna_image_optimizer_cron';
     const BATCH = 25;
-    const MAX_BYTES = 204800;
+    const MAX_BYTES = 204800; // 200 KiB
+    const START_QUALITY = 92;
+    const MIN_QUALITY = 82;
+    const MAX_WIDTH = 1600;
+    const MAX_HEIGHT = 1600;
 
     public static function init() {
         add_filter('cron_schedules', array(__CLASS__, 'cron_schedules'));
@@ -15,45 +19,31 @@ final class Hamnna_Image_Optimizer {
     }
 
     public static function cron_schedules($schedules) {
-        $schedules['hamnna_5minutes'] = array(
-            'interval' => 5 * MINUTE_IN_SECONDS,
-            'display'  => 'Hamnna - Every 5 minutes',
-        );
+        $schedules['hamnna_5minutes'] = array('interval' => 5 * MINUTE_IN_SECONDS, 'display' => 'Hamnna - Every 5 minutes');
         return $schedules;
     }
 
     public static function activate() {
-        if (!wp_next_scheduled(self::CRON)) {
-            wp_schedule_event(time() + 120, 'hamnna_5minutes', self::CRON);
-        }
+        if (!wp_next_scheduled(self::CRON)) wp_schedule_event(time() + 120, 'hamnna_5minutes', self::CRON);
     }
 
-    public static function deactivate() {
-        wp_clear_scheduled_hook(self::CRON);
-    }
+    public static function deactivate() { wp_clear_scheduled_hook(self::CRON); }
 
     public static function admin_menu() {
-        add_submenu_page(
-            'hamnna-scraper',
-            'بهینه‌سازی تصاویر',
-            'بهینه‌سازی تصاویر',
-            'manage_woocommerce',
-            'hamnna-image-optimizer',
-            array(__CLASS__, 'page')
-        );
+        add_submenu_page('hamnna-scraper', 'بهینه‌سازی تصاویر', 'بهینه‌سازی تصاویر', 'manage_woocommerce', 'hamnna-image-optimizer', array(__CLASS__, 'page'));
     }
 
     public static function page() {
         if (!current_user_can('manage_woocommerce')) return;
-        $count = self::count_unoptimized();
         echo '<div class="wrap" dir="rtl">';
         echo '<h1>بهینه‌سازی تصاویر همنا</h1>';
-        echo '<div style="background:#fff;border:1px solid #dcdcde;border-radius:14px;padding:20px;max-width:850px">';
-        echo '<h2>WebP + حداکثر ۲۰۰ کیلوبایت</h2>';
-        echo '<p>افزونه تصاویر کتابخانه رسانه را به WebP تبدیل می‌کند و برای رسیدن به حداکثر <strong>۲۰۰KB</strong> کیفیت را مرحله‌ای کم می‌کند.</p>';
-        echo '<p>تعداد تقریبی تصاویر پردازش‌نشده: <strong>'.esc_html($count).'</strong></p>';
+        echo '<div style="background:#fff;border:1px solid #dcdcde;border-radius:14px;padding:20px;max-width:900px">';
+        echo '<h2>WebP با کیفیت بصری بالا + حداکثر ۲۰۰KB</h2>';
+        echo '<p>تصاویر به WebP تبدیل می‌شوند. افزونه ابتدا کیفیت بالا را حفظ می‌کند و فقط در صورت نیاز، اندازه تصویر را هوشمندانه کاهش می‌دهد تا حجم به زیر <strong>۲۰۰KB</strong> برسد.</p>';
+        echo '<p><strong>هدف:</strong> بدون افت محسوس کیفیت برای نمایش سایت، نه فشرده‌سازی شدید.</p>';
+        echo '<p>تعداد تقریبی تصاویر پردازش‌نشده: <strong>'.esc_html(self::count_unoptimized()).'</strong></p>';
         echo '<p><a class="button button-primary" href="'.esc_url(wp_nonce_url(admin_url('admin-post.php?action=hamnna_optimize_images'),'hamnna_optimize_images')).'">بهینه‌سازی ۲۵ تصویر بعدی</a></p>';
-        echo '<p style="color:#666">بهینه‌سازی خودکار نیز هر ۵ دقیقه حداکثر ۲۵ تصویر را پردازش می‌کند.</p>';
+        echo '<p style="color:#666">پردازش خودکار هر ۵ دقیقه، حداکثر ۲۵ تصویر.</p>';
         echo '</div></div>';
     }
 
@@ -64,9 +54,7 @@ final class Hamnna_Image_Optimizer {
         exit;
     }
 
-    public static function cron_run() {
-        self::process_batch(self::BATCH);
-    }
+    public static function cron_run() { self::process_batch(self::BATCH); }
 
     public static function optimize_attachment($metadata, $attachment_id) {
         self::optimize($attachment_id, $metadata);
@@ -75,18 +63,12 @@ final class Hamnna_Image_Optimizer {
 
     private static function process_batch($limit) {
         $ids = get_posts(array(
-            'post_type'      => 'attachment',
-            'post_status'    => 'inherit',
-            'post_mime_type' => array('image/jpeg','image/png','image/webp'),
-            'posts_per_page' => absint($limit),
-            'fields'         => 'ids',
-            'meta_query'     => array(
-                array('key' => '_hamnna_webp_optimized', 'compare' => 'NOT EXISTS')
-            ),
+            'post_type' => 'attachment', 'post_status' => 'inherit',
+            'post_mime_type' => array('image/jpeg','image/png','image/webp','image/gif'),
+            'posts_per_page' => absint($limit), 'fields' => 'ids',
+            'meta_query' => array(array('key' => '_hamnna_webp_optimized', 'compare' => 'NOT EXISTS')),
         ));
-        foreach ($ids as $id) {
-            self::optimize($id, wp_get_attachment_metadata($id));
-        }
+        foreach ($ids as $id) self::optimize($id, wp_get_attachment_metadata($id));
     }
 
     private static function optimize($attachment_id, $metadata) {
@@ -96,7 +78,7 @@ final class Hamnna_Image_Optimizer {
         $editor = wp_get_image_editor($file);
         if (is_wp_error($editor)) return false;
 
-        $result = self::save_under_limit($editor, $file);
+        $result = self::save_high_quality_under_limit($editor, $file);
         if (is_wp_error($result)) return false;
         $new_file = $result['path'];
 
@@ -107,55 +89,67 @@ final class Hamnna_Image_Optimizer {
         $metadata = is_array($metadata) ? $metadata : array();
         $metadata['file'] = _wp_relative_upload_path($new_file);
         $metadata['mime_type'] = 'image/webp';
-
-        if (!empty($metadata['sizes']) && is_array($metadata['sizes'])) {
-            foreach ($metadata['sizes'] as $size => $size_data) {
-                if (empty($size_data['file'])) continue;
-                $old_size = trailingslashit(dirname($file)) . $size_data['file'];
-                if (!file_exists($old_size)) continue;
-                $size_editor = wp_get_image_editor($old_size);
-                if (is_wp_error($size_editor)) continue;
-                $saved = self::save_under_limit($size_editor, $old_size);
-                if (is_wp_error($saved)) continue;
-                $new_size = $saved['path'];
-                if ($new_size !== $old_size && file_exists($old_size)) @unlink($old_size);
-                $metadata['sizes'][$size]['file'] = basename($new_size);
-                $metadata['sizes'][$size]['mime-type'] = 'image/webp';
-                $metadata['sizes'][$size]['mime'] = 'image/webp';
-                $metadata['sizes'][$size]['filesize'] = filesize($new_size);
-            }
-        }
+        $metadata['width'] = $result['width'];
+        $metadata['height'] = $result['height'];
+        $metadata['filesize'] = filesize($new_file);
+        $metadata['sizes'] = array();
 
         update_post_meta($attachment_id, '_hamnna_webp_optimized', current_time('mysql'));
+        update_post_meta($attachment_id, '_hamnna_webp_filesize', filesize($new_file));
+        update_post_meta($attachment_id, '_hamnna_webp_quality', $result['quality']);
         wp_update_attachment_metadata($attachment_id, $metadata);
         clean_post_cache($attachment_id);
         return true;
     }
 
-    private static function save_under_limit($editor, $source) {
-        $quality = 82;
-        $last = null;
-        for ($i = 0; $i < 8; $i++) {
-            $quality = max(35, 82 - ($i * 7));
-            $saved = $editor->save(self::webp_path($source), 'image/webp', $quality);
+    private static function save_high_quality_under_limit($editor, $source) {
+        $size = $editor->get_size();
+        if (is_wp_error($size)) return $size;
+        $width = (int) $size['width'];
+        $height = (int) $size['height'];
+
+        // First try WebP at very high quality. Only resize when necessary.
+        $scale = min(1, self::MAX_WIDTH / max(1, $width), self::MAX_HEIGHT / max(1, $height));
+        $target_w = max(1, (int) round($width * $scale));
+        $target_h = max(1, (int) round($height * $scale));
+
+        for ($attempt = 0; $attempt < 8; $attempt++) {
+            $working = wp_get_image_editor($source);
+            if (is_wp_error($working)) return $working;
+            if ($target_w !== $width || $target_h !== $height) {
+                $resized = $working->resize($target_w, $target_h, false);
+                if (is_wp_error($resized)) return $resized;
+            }
+
+            $quality = self::START_QUALITY;
+            if ($attempt > 4) $quality = self::MIN_QUALITY;
+            elseif ($attempt > 2) $quality = 88;
+
+            $path = self::unique_webp_path($source);
+            $saved = $working->save($path, 'image/webp', $quality);
             if (is_wp_error($saved)) return $saved;
-            $last = $saved;
-            if (!empty($saved['path']) && file_exists($saved['path']) && filesize($saved['path']) <= self::MAX_BYTES) return $saved;
+            if (file_exists($path) && filesize($path) <= self::MAX_BYTES) {
+                return array('path' => $path, 'width' => $target_w, 'height' => $target_h, 'quality' => $quality);
+            }
+            if (file_exists($path)) @unlink($path);
+
+            // Preserve high visual quality by reducing dimensions before reducing quality.
+            $target_w = max(320, (int) floor($target_w * 0.88));
+            $target_h = max(320, (int) floor($target_h * 0.88));
         }
-        return $last ?: new WP_Error('webp_failed', 'WebP conversion failed.');
+        return new WP_Error('webp_limit_failed', 'Could not reach the 200KB target without excessive quality loss.');
     }
 
-    private static function webp_path($source) {
-        return preg_replace('/\.(jpe?g|png|gif|webp)$/i', '.webp', $source);
+    private static function unique_webp_path($source) {
+        $base = preg_replace('/\.(jpe?g|png|gif|webp)$/i', '', $source);
+        return $base . '.webp';
     }
 
     private static function count_unoptimized() {
         $q = new WP_Query(array(
-            'post_type' => 'attachment',
-            'post_status' => 'inherit',
-            'post_mime_type' => array('image/jpeg','image/png','image/webp'),
-            'posts_per_page' => 1,
-            'fields' => 'ids',
+            'post_type' => 'attachment', 'post_status' => 'inherit',
+            'post_mime_type' => array('image/jpeg','image/png','image/webp','image/gif'),
+            'posts_per_page' => 1, 'fields' => 'ids',
             'meta_query' => array(array('key'=>'_hamnna_webp_optimized','compare'=>'NOT EXISTS')),
         ));
         return (int) $q->found_posts;
