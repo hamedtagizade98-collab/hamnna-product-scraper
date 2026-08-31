@@ -1,14 +1,14 @@
 <?php
 /**
  * Plugin Name: Hamnna Product Scraper for WooCommerce
- * Description: Imports available products from hamnna.ir, skips existing products, checks every 10 minutes, and provides exact manual price synchronization plus detailed reports.
- * Version: 1.3.0
+ * Description: Imports available products from hamnna.ir, skips existing products, checks every 10 minutes, provides exact manual price synchronization and detailed reports.
+ * Version: 1.3.1
  * Author: Hamnna
  * Requires at least: 6.0
  * Requires PHP: 7.4
  */
 if(!defined('ABSPATH'))exit;
-define('HAMNNA_SCRAPER_VERSION','1.3.0');
+define('HAMNNA_SCRAPER_VERSION','1.3.1');
 define('HAMNNA_SCRAPER_FILE',__FILE__);define('HAMNNA_SCRAPER_DIR',plugin_dir_path(__FILE__));
 require_once HAMNNA_SCRAPER_DIR.'includes/class-hamnna-scraper.php';
 require_once HAMNNA_SCRAPER_DIR.'includes/class-hamnna-image-optimizer.php';
