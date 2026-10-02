@@ -2,19 +2,20 @@
 /**
  * Plugin Name: Hamnna Product Scraper for WooCommerce
  * Description: Imports products and autonomously synchronizes prices from hamnna.ir to WooCommerce using multi-signal product matching.
- * Version: 2.0.0
+ * Version: 2.1.0
  * Author: Hamnna
  * Requires at least: 6.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
-define('HAMNNA_SCRAPER_VERSION', '2.0.0');
+define('HAMNNA_SCRAPER_VERSION', '2.1.0');
 define('HAMNNA_SCRAPER_FILE', __FILE__);
 define('HAMNNA_SCRAPER_DIR', plugin_dir_path(__FILE__));
 
 require_once HAMNNA_SCRAPER_DIR . 'includes/class-hamnna-scraper.php';
 require_once HAMNNA_SCRAPER_DIR . 'includes/class-hamnna-price-sync.php';
+require_once HAMNNA_SCRAPER_DIR . 'includes/class-hamnna-price-sync-admin.php';
 require_once HAMNNA_SCRAPER_DIR . 'includes/class-hamnna-report.php';
 require_once HAMNNA_SCRAPER_DIR . 'includes/class-hamnna-speed.php';
 require_once HAMNNA_SCRAPER_DIR . 'includes/class-hamnna-full-import.php';
@@ -54,6 +55,7 @@ add_action('wp_ajax_hamnna_price_sync_now', function() {
     wp_send_json_success(Hamnna_Price_Sync::sync_all());
 });
 
+Hamnna_Price_Sync_Admin::init();
 Hamnna_Product_Slider::init();
 
 add_action('elementor/widgets/register', function ($widgets_manager) {
